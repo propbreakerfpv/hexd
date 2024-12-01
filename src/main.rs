@@ -78,7 +78,7 @@ fn parse(input: &Vec<String>, input_type: DataType) -> Data {
         DataType::Hex => {
             let mut input: String = input.join("");
             input = input.trim_start_matches("0x").to_string();
-            let data = group(2, input.chars()).map(|x| {
+            let data = input.chars().bunch(2).map(|x| {
                 String::from(x.into_iter().fold(String::new(), |mut acc, x| {
                     acc.push(x);
                     acc
@@ -98,7 +98,7 @@ fn parse(input: &Vec<String>, input_type: DataType) -> Data {
         DataType::Bin => {
             let mut input: String = input.join("");
             input = input.trim_start_matches("0b").to_string();
-            let data = group(8, input.chars()).map(|x| {
+            let data = input.chars().bunch(8).map(|x| {
                 String::from(x.into_iter().fold(String::new(), |mut acc, x| {
                     acc.push(x);
                     acc
@@ -127,7 +127,7 @@ fn parse(input: &Vec<String>, input_type: DataType) -> Data {
         DataType::Dec => {
             let mut input: String = input.join("");
             input = input.trim_start_matches("0b").to_string();
-            let data = group(3, input.chars()).map(|x| {
+            let data = input.chars().bunch(3).map(|x| {
                 String::from(x.into_iter().fold(String::new(), |mut acc, x| {
                     acc.push(x);
                     acc
@@ -172,17 +172,24 @@ fn display(parsed: Data, output_type: DataType) -> String {
                 .map(|i| i.to_string())
                 .collect::<String>()
         }
-        DataType::Dec => todo!()
+        DataType::Dec => {
+            parsed
+                .data
+                .into_iter()
+                .map(|x| format!("{}", x.expect_num()))
+                .collect::<Vec<String>>()
+                .join(" ")
+        }
     }
 }
 
 #[derive(Debug)]
-struct GroupIter<I> {
+struct BunchIter<I> {
     iter: I,
     size: u32,
 }
 
-impl<I> Iterator for GroupIter<I> where I: Iterator {
+impl<I> Iterator for BunchIter<I> where I: Iterator {
     type Item = Vec<I::Item>;
     fn next(&mut self) -> Option<Self::Item> {
         let mut out = Vec::new();
@@ -193,9 +200,15 @@ impl<I> Iterator for GroupIter<I> where I: Iterator {
     }
 }
 
-fn group<I>(size: u32, iter: I) -> GroupIter<I> where I: Iterator {
-    GroupIter {
-        iter,
-        size,
+trait Bunch {
+    fn bunch(self, size: u32) -> BunchIter<Self> where Self: Sized;
+}
+
+impl<T: Iterator> Bunch for T {
+    fn bunch(self, size: u32) -> BunchIter<Self> {
+        BunchIter {
+            iter: self,
+            size,
+        }
     }
 }

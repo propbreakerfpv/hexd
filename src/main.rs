@@ -3,10 +3,8 @@ use core::panic;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 
-// todo: 
-// 2. specify input and output type.
-// loooots more
-
+// todo:
+//
 
 #[derive(Debug)]
 enum Item {
@@ -21,32 +19,23 @@ struct Data {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum DataType {
+    #[clap(name = "hex")]
     Hex,
+    #[clap(name = "dec")]
+    Dec,
+    #[clap(name = "bin")]
     Bin,
+    #[clap(name = "string")]
     Str,
 }
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-    values: Option<Vec<String>>
-}
-
-#[derive(Debug, Subcommand)]
-enum Commands {
-    Hex(Hex),
-    Bin(Bin),
-}
-
-#[derive(Debug, Args)]
-struct Hex {
-    values: Vec<String>
-}
-
-#[derive(Debug, Args)]
-struct Bin {
+    #[clap(short, long, value_enum, default_value_t = DataType::Hex)]
+    input_type: DataType,
+    #[clap(short, long, value_enum, default_value_t = DataType::Str)]
+    output_type: DataType,
     values: Vec<String>
 }
 
@@ -68,24 +57,9 @@ impl Item {
 impl ToString for Item {
     fn to_string(&self) -> String {
         match self {
-            Item::Num(n) => n.to_string(),
+            Item::Num(n) => ((*n as u8) as char).to_string(),
             Item::Char(c) => c.to_string(),
         }
-    }
-}
-
-trait ToInputType {
-    fn to_input_type(&self) -> DataType;
-}
-
-impl ToInputType for Hex {
-    fn to_input_type(&self) -> DataType {
-        DataType::Hex
-    }
-}
-impl ToInputType for Bin {
-    fn to_input_type(&self) -> DataType {
-        DataType::Bin
     }
 }
 
@@ -94,16 +68,9 @@ fn main() {
     let cli = Cli::parse();
     println!("{:?}", cli);
 
-    let parsed = match cli.command.unwrap_or_else(|| Commands::Hex(Hex { values: cli.values.unwrap() })) {
-        Commands::Hex(scmd) => {
-            parse(&scmd.values, scmd.to_input_type())
-        }
-        Commands::Bin(scmd) => {
-            parse(&scmd.values, scmd.to_input_type())
-        }
-    };
+    let parsed = parse(&cli.values, cli.input_type);
     println!("parsed: {:?}", parsed);
-    println!("output: {}", display(parsed, DataType::Str));
+    println!("output: {}", display(parsed, cli.output_type));
 }
 
 fn parse(input: &Vec<String>, input_type: DataType) -> Data {
@@ -138,7 +105,7 @@ fn parse(input: &Vec<String>, input_type: DataType) -> Data {
                 }))
             })
                 .map(|x| {
-                    i32::from_str_radix(&x, 2).expect("expected a valid hex number")
+                    i32::from_str_radix(&x, 2).expect("expected a valid binary number")
                 })
                 .map(|x| {
                     Item::Num(x)
@@ -157,6 +124,26 @@ fn parse(input: &Vec<String>, input_type: DataType) -> Data {
                     .collect()
             }
         }
+        DataType::Dec => {
+            let mut input: String = input.join("");
+            input = input.trim_start_matches("0b").to_string();
+            let data = group(3, input.chars()).map(|x| {
+                String::from(x.into_iter().fold(String::new(), |mut acc, x| {
+                    acc.push(x);
+                    acc
+                }))
+            })
+                .map(|x| {
+                    i32::from_str_radix(&x, 10).expect("expected a valid decimal number")
+                })
+                .map(|x| {
+                    Item::Num(x)
+                })
+                .collect();
+            Data {
+                data,
+            }
+        }
     }
 }
 
@@ -170,15 +157,22 @@ fn display(parsed: Data, output_type: DataType) -> String {
                 .collect::<Vec<String>>()
                 .join(" ")
         }
-        DataType::Bin => todo!(),
+        DataType::Bin => {
+            parsed
+                .data
+                .into_iter()
+                .map(|x| format!("{:#010b}", x.expect_num()))
+                .collect::<Vec<String>>()
+                .join(" ")
+        }
         DataType::Str => {
             parsed
                 .data
                 .into_iter()
                 .map(|i| i.to_string())
-                .collect::<Vec<String>>()
-                .join(" ")
+                .collect::<String>()
         }
+        DataType::Dec => todo!()
     }
 }
 

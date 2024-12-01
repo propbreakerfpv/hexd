@@ -1,9 +1,29 @@
+use core::panic;
+
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
+
+// todo: 
+// 2. specify input and output type.
+// loooots more
+
+
+#[derive(Debug)]
+enum Item {
+    Num(i32),
+    Char(char),
+}
+
+#[derive(Debug)]
+struct Data {
+    data: Vec<Item>
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum InputType {
+enum DataType {
     Hex,
-    Bin
+    Bin,
+    Str,
 }
 
 #[derive(Parser, Debug)]
@@ -30,50 +50,134 @@ struct Bin {
     values: Vec<String>
 }
 
+impl Item {
+    fn expect_num(self) -> i32 {
+        match self {
+            Item::Num(n) => n,
+            Item::Char(char) => panic!("expected a number got {}", char),
+        }
+    }
+    fn expect_char(self) -> char {
+        match self {
+            Item::Num(n) => panic!("expected a char got {}", n),
+            Item::Char(char) => char,
+        }
+    }
+}
+
+impl ToString for Item {
+    fn to_string(&self) -> String {
+        match self {
+            Item::Num(n) => n.to_string(),
+            Item::Char(c) => c.to_string(),
+        }
+    }
+}
+
+trait ToInputType {
+    fn to_input_type(&self) -> DataType;
+}
+
+impl ToInputType for Hex {
+    fn to_input_type(&self) -> DataType {
+        DataType::Hex
+    }
+}
+impl ToInputType for Bin {
+    fn to_input_type(&self) -> DataType {
+        DataType::Bin
+    }
+}
+
 fn main() {
     
     let cli = Cli::parse();
     println!("{:?}", cli);
 
-    match cli.command.unwrap_or_else(|| Commands::Hex(Hex { values: cli.values.unwrap() })) {
+    let parsed = match cli.command.unwrap_or_else(|| Commands::Hex(Hex { values: cli.values.unwrap() })) {
         Commands::Hex(scmd) => {
-            let mut input: String = scmd.values.join("");
-            input = input.trim_start_matches("0x").to_string();
-            let output = group(2, input.chars()).map(|x| {
-                String::from(x.into_iter().fold(String::new(), |mut acc, x| {
-                    acc.push(x);
-                    acc
-                }))
-            }).map(|x| {
-                    i16::from_str_radix(&x, 16).unwrap()
-                })
-                .map(|x| x as u8 as char)
-                .fold(String::new(), |mut str, x| {
-                    str.push(x);
-                    str
-                });
-
-            println!("{}", output);
+            parse(&scmd.values, scmd.to_input_type())
         }
         Commands::Bin(scmd) => {
-            let mut input: String = scmd.values.join("");
+            parse(&scmd.values, scmd.to_input_type())
+        }
+    };
+    println!("parsed: {:?}", parsed);
+    println!("output: {}", display(parsed, DataType::Str));
+}
+
+fn parse(input: &Vec<String>, input_type: DataType) -> Data {
+    match input_type {
+        DataType::Hex => {
+            let mut input: String = input.join("");
             input = input.trim_start_matches("0x").to_string();
-            let output = group(8, input.chars()).map(|x| {
+            let data = group(2, input.chars()).map(|x| {
                 String::from(x.into_iter().fold(String::new(), |mut acc, x| {
                     acc.push(x);
                     acc
                 }))
             })
                 .map(|x| {
-                    i16::from_str_radix(&x, 2).unwrap()
+                    i32::from_str_radix(&x, 16).expect("expected a valid hex number")
                 })
-                .map(|x| x as u8 as char)
-                .fold(String::new(), |mut str, x| {
-                    str.push(x);
-                    str
-                });
+                .map(|x| {
+                    Item::Num(x)
+                })
+                .collect();
+            Data {
+                data,
+            }
+        }
+        DataType::Bin => {
+            let mut input: String = input.join("");
+            input = input.trim_start_matches("0b").to_string();
+            let data = group(8, input.chars()).map(|x| {
+                String::from(x.into_iter().fold(String::new(), |mut acc, x| {
+                    acc.push(x);
+                    acc
+                }))
+            })
+                .map(|x| {
+                    i32::from_str_radix(&x, 2).expect("expected a valid hex number")
+                })
+                .map(|x| {
+                    Item::Num(x)
+                })
+                .collect();
+            Data {
+                data,
+            }
+        }
+        DataType::Str  => {
+            Data {
+                data: input
+                    .into_iter()
+                    .map(|s| s .chars().nth(0).expect("should be at least one char per element"))
+                    .map(|c| Item::Char(c))
+                    .collect()
+            }
+        }
+    }
+}
 
-            println!("{}", output);
+fn display(parsed: Data, output_type: DataType) -> String {
+    match output_type {
+        DataType::Hex => {
+            parsed
+                .data
+                .into_iter()
+                .map(|x| format!("{:#01x}", x.expect_num()))
+                .collect::<Vec<String>>()
+                .join(" ")
+        }
+        DataType::Bin => todo!(),
+        DataType::Str => {
+            parsed
+                .data
+                .into_iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<String>>()
+                .join(" ")
         }
     }
 }

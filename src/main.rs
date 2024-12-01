@@ -1,28 +1,68 @@
+use clap::{Args, Parser, Subcommand, ValueEnum};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum InputType {
+    Hex,
+    Bin
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+    values: Option<Vec<String>>
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    Hex(Hex)
+}
+
+#[derive(Debug, Args)]
+struct Hex {
+    values: Vec<String>
+}
+
 fn main() {
-    let mut args = std::env::args().into_iter();
-    let _prog = args.next().unwrap();
-    let mut input: String = args.fold(String::new(), |mut str, x| {
-        str.push_str(&x);
-        str
-    });
+    
+    let cli = Cli::parse();
+    println!("{:?}", cli);
 
-    input = input.trim_start_matches("0x").to_string();
-    println!("{}", input);
-    let mut hex_chars = Vec::new();
-    for idx in 0..input.len() / 2 {
-        hex_chars.push(input[idx..idx + 2].to_string());
+    match cli.command.unwrap_or_else(|| Commands::Hex(Hex { values: cli.values.unwrap() })) {
+        Commands::Hex(scmd) => {
+            let mut input: String = scmd.values.join("");
+            input = input.trim_start_matches("0x").to_string();
+            let output = group(input.chars()).map(|x| {
+                let mut s = String::from(x.0);
+                s.push(x.1);
+                s
+            }).map(|x| {
+                    i16::from_str_radix(&x, 16).unwrap()
+                })
+                .map(|x| x as u8 as char)
+                .fold(String::new(), |mut str, x| {
+                    str.push(x);
+                    str
+                });
+
+            println!("{}", output);
+        }
     }
-    println!("{:?}", hex_chars);
-    let output = hex_chars
-        .iter()
-        .map(|x| {
-            i16::from_str_radix(x, 16).unwrap()
-        })
-        .map(|x| x as u8 as char)
-        .fold(String::new(), |mut str, x| {
-            str.push(x);
-            str
-        });
+}
 
-    println!("{}", output);
+#[derive(Debug)]
+struct GroupIter<I> {
+    iter: I,
+}
+
+impl<I> Iterator for GroupIter<I> where I: Iterator {
+    type Item = (I::Item, I::Item);
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.iter.next()?, self.iter.next()?))
+    }
+}
+
+fn group<I>(iter: I) -> GroupIter<I> where I: Iterator {
+    GroupIter { iter }
 }

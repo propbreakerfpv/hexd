@@ -1,6 +1,6 @@
 use core::panic;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Parser, ValueEnum};
 
 
 // todo:
@@ -66,11 +66,11 @@ impl ToString for Item {
 fn main() {
     
     let cli = Cli::parse();
-    println!("{:?}", cli);
+    // println!("{:?}", cli);
 
     let parsed = parse(&cli.values, cli.input_type);
-    println!("parsed: {:?}", parsed);
-    println!("output: {}", display(parsed, cli.output_type));
+    // println!("parsed: {:?}", parsed);
+    println!("{}", display(parsed, cli.output_type));
 }
 
 fn parse(input: &Vec<String>, input_type: DataType) -> Data {
